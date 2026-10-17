@@ -1,0 +1,51 @@
+name: Package published release
+on:
+  release:
+    types: [published]
+permissions: {}
+jobs:
+  release-assets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+      - name: Validate and package committed plugin
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, re, shutil, zipfile
+          from pathlib import Path
+          manifest = json.loads(Path('manifest.json').read_text(encoding='utf-8'))
+          version = manifest['version']
+          assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?', version), 'Invalid version'
+          assert os.environ['RELEASE_TAG'] in (version, 'v' + version), 'Tag must match manifest version'
+          assert manifest['id'] == 'inkspace' and manifest['isDesktopOnly'] is False, 'Mobile plugin manifest required'
+          plugin = ['main.js', 'manifest.json', 'styles.css', 'THIRD-PARTY-NOTICES.md']
+          docs = ['INSTALL.md', 'README.md', 'VALIDATION.md']
+          output = Path('release-assets')
+          output.mkdir(exist_ok=True)
+          for name in plugin + docs:
+              assert Path(name).is_file(), 'Missing release file: ' + name
+              Path(name).read_text(encoding='utf-8')
+          archive = output / f'inkspace-{version}.zip'
+          with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as package:
+              for name in plugin:
+                  package.write(name, 'inkspace/' + name)
+              for name in docs:
+                  package.write(name, name)
+          for name in plugin:
+              shutil.copyfile(name, output / name)
+          assets = [output / name for name in plugin] + [archive]
+          checksums = ''.join(hashlib.sha256(path.read_bytes()).hexdigest() + '  ' + path.name + '\n' for path in assets)
+          (output / 'inkspace-SHA256SUMS.txt').write_text(checksums, encoding='utf-8')
+          PY
+      - name: Upload six release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" release-assets/* --repo "$GITHUB_REPOSITORY"
