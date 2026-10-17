@@ -1,0 +1,34 @@
+import {chromium,webkit} from 'playwright';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import * as esbuild from 'esbuild';
+await esbuild.build({entryPoints:['preview/main.ts'],bundle:true,format:'iife',target:'es2020',outfile:'preview/bundle.js',sourcemap:true});
+const browser=await (process.env.INKSPACE_BROWSER==='webkit'?webkit.launch({headless:true}):chromium.launch({channel:'msedge',headless:true}));
+const page=await browser.newPage({viewport:{width:1440,height:1050},deviceScaleFactor:1});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.goto('http://127.0.0.1:4173');await page.waitForFunction(()=>window.inkspaceTest?.view);
+await page.evaluate(()=>{localStorage.clear();});await page.reload();
+await page.waitForFunction(()=>window.inkspaceTest?.view);await page.evaluate(async()=>{await window.inkspaceTest.getSession();window.inkspaceTest.host.updateSettings({mouseDrawing:false});});
+const settled=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await settled();
+const count=()=>page.evaluate(async()=>(await window.inkspaceTest.getSession()).document.strokes.length);
+const getInkBounds=()=>page.evaluate(()=>{const c=document.querySelector('.inkspace-saved-ink');const d=c.getContext('2d').getImageData(0,0,c.width,c.height);let x1=1e9,y1=1e9,x2=-1,y2=-1,n=0;for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){const i=(y*c.width+x)*4;if(d.data[i+3]>40){x1=Math.min(x1,x);y1=Math.min(y1,y);x2=Math.max(x2,x);y2=Math.max(y2,y);n++;}}return{x1,y1,x2,y2,n};});
+async function stroke(points,tool='pen',id=101){await page.evaluate(({points,tool,id})=>{const t=window.inkspaceTest;t.host.updateSettings({tool});const target=t.view.contentDOM;for(let i=0;i<points.length;i++){const type=i===0?'pointerdown':i===points.length-1?'pointerup':'pointermove';const [x,y]=points[i];target.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:id,pointerType:'pen',isPrimary:true,button:0,buttons:type==='pointerup'?0:1,clientX:x,clientY:y,pressure:type==='pointerup'?0:.5}));}},{points,tool,id});await settled();}
+let target=await page.evaluate(()=>{const t=window.inkspaceTest;const pos=t.view.state.doc.toString().indexOf('Circle an idea');const p=t.view.coordsAtPos(pos);return{x:p.left,y:(p.top+p.bottom)/2};});
+await stroke([[target.x,target.y],[target.x+30,target.y-12],[target.x+65,target.y],[target.x+35,target.y+14],[target.x,target.y]]);
+assert.equal(await count(),1,'Pencil draws directly over existing editable text');let before=await getInkBounds();assert.ok(before.n>40,'Saved ink is visibly rendered');
+await page.evaluate(()=>{const t=window.inkspaceTest;t.view.focus();t.view.dispatch({selection:{anchor:0}});});await page.keyboard.insertText('A new paragraph above.\n\n');await settled();
+let after=await getInkBounds();assert.ok(after.y1>before.y1+20,'Ink follows text inserted above it');assert.equal(await count(),1,'Typing does not make stray strokes');
+await page.evaluate(()=>{const t=window.inkspaceTest;t.view.dispatch({selection:{anchor:t.view.state.doc.length}});});await page.keyboard.insertText('\nTyping still works while Pen is active.');
+assert.ok(await page.evaluate(()=>window.inkspaceTest.view.state.doc.toString().includes('Typing still works')));
+await page.getByRole('button',{name:'Highlighter',exact:true}).click();assert.equal(await page.evaluate(()=>window.inkspaceTest.host.getSettings().tool),'highlighter');
+target=await page.evaluate(()=>{const t=window.inkspaceTest;const p=t.view.coordsAtPos(t.view.state.doc.toString().indexOf('Circle an idea'));return{x:p.left,y:(p.top+p.bottom)/2};});
+await stroke([[target.x,target.y],[target.x+120,target.y]],'highlighter',102);assert.equal(await count(),2);
+await page.getByRole('button',{name:'Undo ink',exact:true}).click();assert.equal(await count(),1);await page.getByRole('button',{name:'Redo ink',exact:true}).click();assert.equal(await count(),2);
+await page.evaluate(async()=>{await (await window.inkspaceTest.getSession()).flush();});await page.reload();await page.waitForFunction(()=>window.inkspaceTest?.view);await settled();await page.evaluate(async()=>await window.inkspaceTest.getSession());assert.equal(await count(),2,'Ink survives save and reopening');
+const oldCount=await count();await page.evaluate(()=>{const t=window.inkspaceTest;t.host.updateSettings({tool:'pen',mouseDrawing:false});});const content=await page.locator('.cm-content').boundingBox();await page.mouse.click(content.x+30,content.y+100);assert.equal(await count(),oldCount,'Normal mouse clicks remain text editing');
+await page.getByRole('button',{name:'▤   Study notes'}).count().then(async n=>{if(n)await page.getByRole('button',{name:'▤   Study notes'}).click();else await page.locator('[data-path="Study.md"]').click();});await settled();await page.evaluate(async()=>await window.inkspaceTest.getSession());assert.equal(await count(),0,'Changing notes never shares ink');
+await page.locator('[data-path="Welcome.md"]').click();await settled();await page.evaluate(async()=>await window.inkspaceTest.getSession());assert.equal(await count(),2);
+await page.evaluate(()=>{window.inkspaceTest.host.updateSettings({mouseDrawing:true});window.inkspaceTest.view.scrollDOM.scrollTop=0;});await settled();
+for(const [width,height,theme]of [[1440,1050,'light'],[820,1180,'light'],[600,900,'dark'],[390,844,'light']]){await page.setViewportSize({width,height});await page.evaluate(theme=>document.body.classList.toggle('theme-dark',theme==='dark'),theme);await settled();const toolbar=await page.locator('.inkspace-toolbar').boundingBox();assert.ok(toolbar&&toolbar.width<=width,'Toolbar stays in viewport');assert.ok(toolbar.y+toolbar.height<height,'Toolbar remains reachable');await fs.mkdir('work/screenshots',{recursive:true});await page.screenshot({path:`work/screenshots/editor-${width}-${theme}.png`});}
+assert.deepEqual(errors,[],'No browser runtime errors');
+await browser.close();console.log('Browser integration passed: direct ink, typing, anchors, undo/redo, persistence, file switching, 4 layouts, zero runtime errors.');

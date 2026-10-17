@@ -1,0 +1,33 @@
+{
+  "name": "obsidian-inkspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Integrated ink over editable Obsidian notes for iPad and Windows",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs",
+    "preview": "node scripts/preview.mjs",
+    "verify": "node scripts/verify.mjs",
+    "package": "node scripts/package.mjs",
+    "test:browser": "node scripts/browser-test.mjs",
+    "test:zoom": "node scripts/zoom-test.mjs"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "pdf-lib": "^1.17.1",
+    "perfect-freehand": "^1.2.2"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "^6.8.1",
+    "@codemirror/lang-markdown": "^6.3.2",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.36.5",
+    "@types/node": "^22.15.0",
+    "esbuild": "^0.25.0",
+    "obsidian": "^1.8.7",
+    "pdfjs-dist": "^4.10.38",
+    "playwright": "1.55.0",
+    "typescript": "^5.8.3"
+  }
+}
