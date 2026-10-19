@@ -12,7 +12,7 @@ const notes:Record<string,string>={'Welcome.md':welcome,'Study.md':'# Study note
 function loadPreferences(): InkSettings {
   let saved: Partial<InkSettings> = {};
   try { saved = JSON.parse(localStorage.getItem('inkspace:settings') ?? '{}') ?? {}; } catch { /* Start with defaults if preview preferences are invalid. */ }
-  return { ...DEFAULT_SETTINGS, mouseDrawing: true, ...saved, favoriteStyles: normalizeFavoriteStyles(saved.favoriteStyles) };
+  return { ...DEFAULT_SETTINGS, mouseDrawing: true, ...saved, stabilization: ['off','light','natural','strong'].includes(saved.stabilization ?? '') ? saved.stabilization! : DEFAULT_SETTINGS.stabilization, favoriteStyles: normalizeFavoriteStyles(saved.favoriteStyles) };
 }
 let path='Welcome.md';let preferences:InkSettings=loadPreferences();const listeners=new Set<()=>void>();
 const status=(message:string,error=false)=>{const s=document.querySelector<HTMLElement>('#status')!;s.textContent=message;s.style.display='block';s.style.background=error?'#992f38':'#233653';setTimeout(()=>s.style.display='none',4000);};

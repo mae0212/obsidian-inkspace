@@ -1,4 +1,5 @@
 import type { EditorView } from '@codemirror/view';
+import type { StabilizationMode } from './stabilizer';
 
 export type Tool = 'pen' | 'highlighter' | 'eraser' | 'lasso' | 'text' | 'line' | 'arrow' | 'rectangle' | 'ellipse';
 export type StrokeTool = Exclude<Tool, 'eraser' | 'lasso' | 'text'>;
@@ -13,8 +14,8 @@ export const DEFAULT_FAVORITE_STYLES: readonly Readonly<InkPreset>[] = Object.fr
   Object.freeze({ name: 'Red pen', tool: 'pen' as const, color: '#dc2626', width: 2.5 }),
   Object.freeze({ name: 'Yellow highlighter', tool: 'highlighter' as const, color: '#eab308', width: 22, opacity: .27 }),
 ]);
-export interface InkSettings { tool: Tool; color: string; penWidth: number; highlighterWidth: number; highlighterOpacity: number; eraserSize: number; smoothing: number; usePressure: boolean; mouseDrawing: boolean; enabled: boolean; stableLayout: boolean; writingWidth: number; zoom: number; paper: 'plain' | 'ruled' | 'grid' | 'dots'; dataFolder: string; autosaveMs: number; favoriteStyles: InkPreset[] }
-export const DEFAULT_SETTINGS: InkSettings = { tool:'pen', color:'#2563eb', penWidth:2.5, highlighterWidth:22, highlighterOpacity:0.27, eraserSize:18, smoothing:0.55, usePressure:false, mouseDrawing:false, enabled:true, stableLayout:true, writingWidth:760, zoom:1, paper:'plain', dataFolder:'Inkspace Data', autosaveMs:550, favoriteStyles: DEFAULT_FAVORITE_STYLES.map(style => ({ ...style })) };
+export interface InkSettings { tool: Tool; color: string; penWidth: number; highlighterWidth: number; highlighterOpacity: number; eraserSize: number; smoothing: number; stabilization: StabilizationMode; usePressure: boolean; mouseDrawing: boolean; enabled: boolean; stableLayout: boolean; writingWidth: number; zoom: number; paper: 'plain' | 'ruled' | 'grid' | 'dots'; dataFolder: string; autosaveMs: number; favoriteStyles: InkPreset[] }
+export const DEFAULT_SETTINGS: InkSettings = { tool:'pen', color:'#2563eb', penWidth:2.5, highlighterWidth:22, highlighterOpacity:0.27, eraserSize:18, smoothing:0.55, stabilization:'natural', usePressure:false, mouseDrawing:false, enabled:true, stableLayout:true, writingWidth:760, zoom:1, paper:'plain', dataFolder:'Inkspace Data', autosaveMs:550, favoriteStyles: DEFAULT_FAVORITE_STYLES.map(style => ({ ...style })) };
 export const COLORS = ['#2563eb','#151b2e','#dc2626','#16a34a','#9333ea','#ea580c','#eab308','#ffffff'];
 export interface InkSession {
   readonly path: string; readonly document: InkDocument; readonly canUndo: boolean; readonly canRedo: boolean;

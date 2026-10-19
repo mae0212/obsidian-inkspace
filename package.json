@@ -1,6 +1,6 @@
 {
   "name": "obsidian-inkspace",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Integrated ink over editable Obsidian notes for iPad and Windows",
   "scripts": {
@@ -12,7 +12,8 @@
     "package": "node scripts/package.mjs",
     "test:browser": "node scripts/browser-test.mjs",
     "test:zoom": "node scripts/zoom-test.mjs",
-    "test:toolbar": "node scripts/toolbar-test.mjs"
+    "test:toolbar": "node scripts/toolbar-test.mjs",
+    "test:stabilization": "node scripts/stabilization-test.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.2",

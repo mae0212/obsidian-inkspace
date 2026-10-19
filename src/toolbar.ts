@@ -6,6 +6,7 @@ const TOOLS: Array<[Tool, string, string]> = [
   ['eraser', '⌫', 'Eraser'], ['lasso', '◌', 'Lasso selection'], ['line', '╱', 'Line'],
   ['arrow', '↗', 'Arrow'], ['rectangle', '▭', 'Rectangle'], ['ellipse', '◯', 'Ellipse'],
 ];
+const STABILIZATION_LEVELS = [['off', 'Off'], ['light', 'Light'], ['natural', 'Natural'], ['strong', 'Strong']] as const;
 interface SizeSpec {
   key: 'penWidth' | 'highlighterWidth' | 'eraserSize';
   label: string;
@@ -120,6 +121,24 @@ export function createToolbar(host: InkHost, container: HTMLElement, session: ()
   presets.className = 'inkspace-size-presets';
   presets.setAttribute('aria-label', 'Stroke size presets');
   popup.append(presets);
+  const stabilization = doc.createElement('div');
+  stabilization.className = 'inkspace-stabilization';
+  stabilization.setAttribute('role', 'group');
+  stabilization.setAttribute('aria-label', 'Handwriting stabilization');
+  const stabilizationTitle = doc.createElement('strong');
+  stabilizationTitle.className = 'inkspace-stabilization-heading';
+  stabilizationTitle.textContent = 'Handwriting stabilization';
+  const stabilizationChoices = doc.createElement('div');
+  stabilizationChoices.className = 'inkspace-stabilization-choices';
+  const stabilizationButtons = STABILIZATION_LEVELS.map(([value, label]) => ({
+    value,
+    element: button(stabilizationChoices, `Stabilization: ${label}`, label, () => host.updateSettings({ stabilization: value })),
+  }));
+  const stabilizationHint = doc.createElement('p');
+  stabilizationHint.className = 'inkspace-stabilization-hint';
+  stabilizationHint.textContent = 'Steadier slow strokes; responsive curves. Applies to new ink.';
+  stabilization.append(stabilizationTitle, stabilizationChoices, stabilizationHint);
+  popup.append(stabilization);
   const favoritesHeading = doc.createElement('strong');
   favoritesHeading.className = 'inkspace-favorites-heading';
   favoritesHeading.textContent = 'Saved styles';
@@ -387,6 +406,12 @@ export function createToolbar(host: InkHost, container: HTMLElement, session: ()
       currentSizeKey = spec.key;
     }
     const canSave = captureFavoriteStyle(settings) !== null;
+    stabilization.hidden = settings.tool !== 'pen' && settings.tool !== 'highlighter';
+    stabilizationButtons.forEach(({ value, element }) => {
+      const selected = (settings.stabilization ?? 'natural') === value;
+      element.setAttribute('aria-pressed', String(selected));
+      element.classList.toggle('is-active', selected);
+    });
     favoriteButtons.forEach(({ use, save, dot, label }, index) => {
       const preset = settings.favoriteStyles[index];
       use.disabled = !preset;

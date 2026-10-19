@@ -38,6 +38,13 @@
 .inkspace-size-presets { display:grid; grid-template-columns:repeat(auto-fit,minmax(44px,1fr)); gap:6px; }
 .inkspace-toolbar .inkspace-size-presets button { width:100%; border:1px solid var(--background-modifier-border,#dce3ee); background:var(--background-secondary,#f3f5fa); }
 .inkspace-toolbar .inkspace-size-presets button[aria-pressed="true"] { border-color:var(--text-accent,#4775eb); color:var(--text-accent,#4775eb); background:#4775eb18; }
+.inkspace-stabilization[hidden] { display:none!important; }
+.inkspace-stabilization { display:grid; gap:7px; margin-top:6px; }
+.inkspace-stabilization-heading { font-size:12px; font-weight:600; }
+.inkspace-stabilization-choices { display:grid; grid-template-columns:repeat(4,minmax(44px,1fr)); gap:5px; }
+.inkspace-toolbar .inkspace-stabilization-choices button { width:100%; min-width:44px; min-height:44px; height:44px; padding:0 3px; font-size:12px; border:1px solid var(--background-modifier-border,#dce3ee); background:var(--background-secondary,#f3f5fa); }
+.inkspace-toolbar .inkspace-stabilization-choices button[aria-pressed="true"] { border-color:var(--text-accent,#4775eb); color:var(--text-accent,#4775eb); background:#4775eb18; }
+.inkspace-stabilization-hint { margin:0; font-size:11px; line-height:1.45; color:var(--text-muted,#687589); }
 .inkspace-favorites-heading { margin-top:6px; font-size:12px; font-weight:600; }
 .inkspace-favorites { display:flex; flex-direction:column; gap:6px; }
 .inkspace-favorite-row { display:grid; grid-template-columns:minmax(0,1fr) 60px; gap:8px; }
@@ -72,7 +79,7 @@
   .inkspace-palette { gap:0; padding:0; }
   .inkspace-more summary { display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0; }
   .inkspace-toolbar .inkspace-more-menu button { width:100%; height:auto; min-height:44px; }
-  .inkspace-toolbar .inkspace-size-presets button, .inkspace-toolbar .inkspace-favorite-use { width:100%; }
+  .inkspace-toolbar .inkspace-size-presets button, .inkspace-toolbar .inkspace-stabilization-choices button, .inkspace-toolbar .inkspace-favorite-use { width:100%; }
   .inkspace-toolbar .inkspace-favorite-save { width:60px; }
 }
 @media(prefers-reduced-motion:reduce){.inkspace-toolbar *{transition:none!important;}}

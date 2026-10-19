@@ -2,12 +2,13 @@ import { Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 import { createAnchor, createId, drawStroke, hitStroke, polygonContains, shapePoints, strokeBounds, strokesToSvg, translateStrokes } from './core';
 import type { Anchor, InkHost, InkSession, Point, Stroke, StrokeTool, Tool } from './types';
+import { createStrokeStabilizer } from './stabilizer';
 
 // Ink coordinates are unzoomed contentDOM coordinates. Canvas dimensions and client coordinates
 // are screen pixels; convert only at the input/render boundary so saved vectors never shrink.
 type Geometry = { left: number; top: number; width: number; height: number; scrollX: number; scrollY: number; canvasLeft: number; canvasTop: number; dpr: number; scale: number };
 type Placement = { dx: number; dy: number };
-type Gesture = { pointerId: number; kind: 'draw' | 'erase' | 'lasso' | 'move'; tool: Tool; points: Point[]; stroke?: Stroke; erased: Set<string>; origin: Point; delta: { x: number; y: number }; geometry: Geometry; session: InkSession };
+type Gesture = { pointerId: number; kind: 'draw' | 'erase' | 'lasso' | 'move'; tool: Tool; points: Point[]; stroke?: Stroke; stabilizer?: ReturnType<typeof createStrokeStabilizer>; lastInput: Point; erased: Set<string>; origin: Point; delta: { x: number; y: number }; geometry: Geometry; session: InkSession };
 type ZoomFocal = { x: number; y: number; screenX: number; screenY: number };
 type Pinch = { distance: number; zoom: number; x: number; y: number };
 const SHAPES = new Set<Tool>(['line', 'arrow', 'rectangle', 'ellipse']);
@@ -516,8 +517,10 @@ class InkEditor {
     const bounds = this.selectionBounds();
     const move = tool === 'lasso' && bounds && point.x >= bounds.x - 8 && point.x <= bounds.x + bounds.width + 8 && point.y >= bounds.y - 8 && point.y <= bounds.y + bounds.height + 8;
     const kind: Gesture['kind'] = tool === 'eraser' ? 'erase' : tool === 'lasso' ? move ? 'move' : 'lasso' : 'draw';
+    const stabilizer = kind === 'draw' && (tool === 'pen' || tool === 'highlighter') ? createStrokeStabilizer(settings.stabilization) : undefined;
+    const first = stabilizer?.next(point) ?? point;
     const stroke: Stroke | undefined = kind === 'draw' ? { id: createId(), tool: tool as StrokeTool, points: [point], color: settings.color, width: tool === 'highlighter' ? settings.highlighterWidth : settings.penWidth, opacity: tool === 'highlighter' ? settings.highlighterOpacity : 1, smoothing: settings.smoothing, usePressure: settings.usePressure, anchor: this.anchorAt(point, geometry), updatedAt: Date.now() } : undefined;
-    this.gesture = { pointerId: event.pointerId, kind, tool, points: [point], stroke, erased: new Set(), origin: point, delta: { x: 0, y: 0 }, geometry, session: this.session };
+    this.gesture = { pointerId: event.pointerId, kind, tool, points: [first], stroke, stabilizer, lastInput: point, erased: new Set(), origin: point, delta: { x: 0, y: 0 }, geometry, session: this.session };
     this.consume(event);
     try { this.view.dom.setPointerCapture(event.pointerId); } catch { /* Document listeners still finish the gesture when capture is unavailable. */ }
     if (kind === 'erase') this.eraseAt(point);
@@ -530,10 +533,22 @@ class InkEditor {
     if (!gesture || event.pointerId !== gesture.pointerId) return;
     this.consume(event);
     let samples: PointerEvent[] = [event];
-    if (typeof event.getCoalescedEvents === 'function') { const coalesced = event.getCoalescedEvents(); if (coalesced.length) samples = coalesced; }
+    if (typeof event.getCoalescedEvents === 'function') {
+      const coalesced = event.getCoalescedEvents();
+      if (coalesced.length) {
+        samples = [...coalesced];
+        const last = coalesced[coalesced.length - 1];
+        if (last.clientX !== event.clientX || last.clientY !== event.clientY || last.timeStamp !== event.timeStamp || last.pressure !== event.pressure) samples.push(event);
+      }
+    }
     for (const sample of samples) {
-      const point = this.point(sample, this.geometry ?? gesture.geometry);
-      if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
+      const raw = this.point(sample, this.geometry ?? gesture.geometry);
+      if (!Number.isFinite(raw.x) || !Number.isFinite(raw.y)) continue;
+      // A lift or its coalesced history can report zero pressure. Keep the last
+      // contact pressure rather than introducing an artificial endpoint bulge.
+      if (sample.pressure <= 0) raw.pressure = gesture.lastInput.pressure;
+      gesture.lastInput = raw;
+      const point = gesture.stabilizer?.next(raw) ?? raw;
       if (gesture.kind === 'move') gesture.delta = { x: point.x - gesture.origin.x, y: point.y - gesture.origin.y };
       else if (gesture.kind === 'erase') this.eraseAt(point);
       else {

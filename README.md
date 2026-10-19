@@ -2,7 +2,15 @@
 
 Type and draw on the same note. Inkspace adds editable ink directly over Obsidian's normal Markdown editor, including existing text and images. One mobile-compatible plugin bundle serves iPad and Windows.
 
-**Version 0.2.0 is an early prototype.** Automated editor, storage, import, and PDF checks are included. Apple Pencil latency and palm rejection must still be verified on a physical iPad; this release does not claim Goodnotes-identical performance.
+**Version 0.3.0 is an early prototype.** Automated editor, storage, import, and PDF checks are included. Apple Pencil latency and palm rejection must still be verified on a physical iPad; this release does not claim Goodnotes-identical performance.
+
+## New in 0.3.0
+
+Handwriting stabilization steadies small shakes while keeping your own letter shapes. Slow movements receive more smoothing; faster curves stay responsive. It does not snap handwriting into lines or replace it with a font.
+
+Tap the current stroke size, then choose **Off**, **Light**, **Natural**, or **Strong** under **Handwriting stabilization**. Natural is the starting setting after installation or update. Try Light if you prefer a looser feel, or Strong for more assistance. The same choices are in **Settings → Inkspace**.
+
+Stabilization applies to new pen and highlighter strokes in Markdown and PDFs. Existing strokes keep their saved appearance. The already stabilized path is saved, so lifting the Pencil, reopening, selecting, erasing, or exporting does not run another stabilization pass. The feel on a physical Apple Pencil still needs device confirmation.
 
 ## New in 0.2.0
 
@@ -26,7 +34,7 @@ Type and draw on the same note. Inkspace adds editable ink directly over Obsidia
 
 See [INSTALL.md](INSTALL.md) for Windows, iPad, and updating an existing installation. The plugin ID is `inkspace`. Runtime files are `main.js`, `manifest.json`, and `styles.css`.
 
-The repository is public. In BRAT, add `mae0212/obsidian-inkspace` and select **0.2.0**; a GitHub token is not needed for normal installation. Syncing an installed Windows plugin to iPad through Obsidian Sync is another route. Installing the plugin and syncing note data are separate steps.
+The repository is public. In BRAT, add `mae0212/obsidian-inkspace` and select **Latest** or **0.3.0**; a GitHub token is not needed for normal installation. Syncing an installed Windows plugin to iPad through Obsidian Sync is another route. Installing the plugin and syncing note data are separate steps.
 
 ## Use
 
@@ -54,4 +62,4 @@ Export notebooks or folders from Goodnotes as PDF or ZIP, then run **Inkspace: I
 
 Use Node.js 20+ and pnpm. Run `pnpm install`, `pnpm typecheck`, `pnpm test`, and `pnpm build`. `pnpm preview` starts the actual editor extension in a browser test workspace at `http://127.0.0.1:4173`.
 
-`node scripts/browser-test.mjs`, `node scripts/zoom-test.mjs`, and `node scripts/toolbar-test.mjs` test Edge. Set `INKSPACE_BROWSER=webkit` to test Playwright WebKit after installing it. See [VALIDATION.md](VALIDATION.md) for release checks and device limits, and [CHANGELOG.md](CHANGELOG.md) for changes. Third-party notices are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+`node scripts/browser-test.mjs`, `node scripts/zoom-test.mjs`, `node scripts/toolbar-test.mjs`, and `node scripts/stabilization-test.mjs` test Edge. Set `INKSPACE_BROWSER=webkit` to test Playwright WebKit after installing it. See [VALIDATION.md](VALIDATION.md) for release checks and device limits, and [CHANGELOG.md](CHANGELOG.md) for changes. Third-party notices are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

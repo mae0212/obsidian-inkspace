@@ -1,6 +1,7 @@
 import { ItemView, loadPdfJs, TFile, type WorkspaceLeaf, type ViewStateResult } from 'obsidian';
 import { exportAnnotatedPdf } from './pdf-export';
 import { drawStroke, hitStroke } from './core';
+import { createStrokeStabilizer } from './stabilizer';
 import type { InkHost, InkSession, Point, Stroke } from './types';
 
 export const VIEW_TYPE_PDF = 'inkspace-pdf';
@@ -36,6 +37,8 @@ export class InkspacePdfView extends ItemView {
   private frame = 0;
   private pointerId: number | null = null;
   private activeStroke: Stroke | null = null;
+  private stabilizer: ReturnType<typeof createStrokeStabilizer> | null = null;
+  private lastSample: Point | null = null;
   private erasedIds: Set<string> | null = null;
   private lasso: Point[] | null = null;
   private selected = new Set<string>();
@@ -111,14 +114,18 @@ export class InkspacePdfView extends ItemView {
     this.ink.addEventListener('touchmove', guardPencilTouch, { passive: false, capture: true });
     this.ink.addEventListener('contextmenu', event => { if (this.pointerId !== null) event.preventDefault(); });
     this.ink.addEventListener('keydown', event => {
-      if (event.key === 'Escape') { this.selected.clear(); this.schedulePaint(); }
+      if (event.key === 'Escape') { this.cancelInput(); this.selected.clear(); this.schedulePaint(); }
       if ((event.key === 'Delete' || event.key === 'Backspace') && this.selected.size && this.session) {
         event.preventDefault();
         this.session.replace(this.session.document.strokes.filter(stroke => !this.selected.has(stroke.id)), 'Delete selection');
         this.selected.clear();
       }
     });
-    this.settingsOff = this.host.subscribeSettings(() => { this.cacheDirty = true; this.updateInputMode(); this.schedulePaint(); });
+    this.settingsOff = this.host.subscribeSettings(() => {
+      const settings = this.host.getSettings();
+      if (!settings.enabled || settings.tool === 'text') this.cancelInput();
+      this.cacheDirty = true; this.updateInputMode(); this.schedulePaint();
+    });
     this.resizeObserver = new ResizeObserver(() => {
       if (!this.pdf || !this.fitting) return;
       const previous = this.zoom;
@@ -229,17 +236,23 @@ export class InkspacePdfView extends ItemView {
   }
   private point(event: PointerEvent): Point {
     const rect = this.ink.getBoundingClientRect();
-    return { x: (event.clientX - rect.left) * this.pageWidth / rect.width, y: (event.clientY - rect.top) * this.pageHeight / rect.height, pressure: event.pressure || 0.5, t: event.timeStamp };
+    // Lift events commonly report zero pressure rather than a new contact
+    // measurement. Retain the last contact's pressure instead of thickening its tail.
+    const pressure = event.pressure > 0 ? event.pressure : this.lastSample?.pressure ?? 0.5;
+    return { x: (event.clientX - rect.left) * this.pageWidth / rect.width, y: (event.clientY - rect.top) * this.pageHeight / rect.height, pressure, t: event.timeStamp };
   }
   private pointerDown = (event: PointerEvent): void => {
     const settings = this.host.getSettings();
     if (!this.pdf || !this.session || !settings.enabled || this.pointerId !== null || event.pointerType === 'touch' || (event.pointerType === 'mouse' && (!settings.mouseDrawing || event.button !== 0))) return;
     if (settings.tool === 'text') { this.host.status('Type in Markdown notes. On a PDF, choose a pen, highlighter, shape, eraser, or lasso.'); return; }
+    const point = this.point(event);
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
     event.preventDefault();
     this.pointerId = event.pointerId;
-    this.ink.setPointerCapture(event.pointerId);
+    try { this.ink.setPointerCapture(event.pointerId); }
+    catch { this.cancelInput(); return; }
     this.ink.focus({ preventScroll: true });
-    const point = this.point(event);
+    this.lastSample = point;
     if (settings.tool === 'eraser' || event.button === 5 || event.buttons === 32) {
       this.erasedIds = new Set(); this.eraseAt(point);
     } else if (settings.tool === 'lasso') {
@@ -248,7 +261,8 @@ export class InkspacePdfView extends ItemView {
       else { this.selected.clear(); this.lasso = [point]; }
     } else {
       this.selected.clear();
-      this.activeStroke = { id: makeId(), tool: settings.tool, points: [point], color: settings.color, width: settings.tool === 'highlighter' ? settings.highlighterWidth : settings.penWidth, opacity: settings.tool === 'highlighter' ? settings.highlighterOpacity : 1, page: this.pageNumber, smoothing: settings.smoothing, usePressure: settings.usePressure, updatedAt: Date.now() };
+      this.stabilizer = settings.tool === 'pen' || settings.tool === 'highlighter' ? createStrokeStabilizer(settings.stabilization) : null;
+      this.activeStroke = { id: makeId(), tool: settings.tool, points: [this.stabilizer?.next(point) ?? point], color: settings.color, width: settings.tool === 'highlighter' ? settings.highlighterWidth : settings.penWidth, opacity: settings.tool === 'highlighter' ? settings.highlighterOpacity : 1, page: this.pageNumber, smoothing: settings.smoothing, usePressure: settings.usePressure, updatedAt: Date.now() };
     }
     this.schedulePaint();
   };
@@ -256,10 +270,20 @@ export class InkspacePdfView extends ItemView {
     if (event.pointerId !== this.pointerId) return;
     event.preventDefault();
     const samples = typeof event.getCoalescedEvents === 'function' ? event.getCoalescedEvents() : [event];
-    for (const sample of samples.length ? samples : [event]) {
-      const point = this.point(sample);
+    // A WebView may omit the dispatch event from its historical samples. Always
+    // include it so a short final movement on pointerup is not lost.
+    for (const sample of samples.includes(event) ? samples : [...samples, event]) {
+      let point = this.point(sample);
+      if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
+      const previousSample = this.lastSample;
+      if (previousSample && point.x === previousSample.x && point.y === previousSample.y && point.t === previousSample.t) continue;
+      this.lastSample = point;
       if (this.activeStroke) {
-        if (this.activeStroke.tool === 'pen' || this.activeStroke.tool === 'highlighter') this.activeStroke.points.push(point);
+        if (this.activeStroke.tool === 'pen' || this.activeStroke.tool === 'highlighter') {
+          point = this.stabilizer?.next(point) ?? point;
+          const previous = this.activeStroke.points[this.activeStroke.points.length - 1];
+          if (Math.hypot(point.x - previous.x, point.y - previous.y) >= 0.15) this.activeStroke.points.push(point);
+        }
         else this.activeStroke.points = [this.activeStroke.points[0], point];
       }
       else if (this.erasedIds) this.eraseAt(point);
@@ -288,7 +312,7 @@ export class InkspacePdfView extends ItemView {
   private pointerCancel = (event: PointerEvent): void => { if (event.pointerId === this.pointerId) { this.cancelInput(); this.schedulePaint(); } };
   private cancelInput(): void {
     const pointer = this.pointerId;
-    this.pointerId = null; this.activeStroke = null; this.erasedIds = null; this.lasso = null; this.drag = null;
+    this.pointerId = null; this.activeStroke = null; this.stabilizer = null; this.lastSample = null; this.erasedIds = null; this.lasso = null; this.drag = null;
     this.cacheDirty = true;
     if (pointer !== null && this.ink?.hasPointerCapture(pointer)) this.ink.releasePointerCapture(pointer);
   }

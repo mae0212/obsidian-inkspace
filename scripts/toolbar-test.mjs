@@ -97,6 +97,7 @@ try {
 
   assert.equal(await page.locator('.inkspace-toolbar input[type="range"]').count(), 0, 'Changing stroke width no longer requires a horizontal slider');
   assert.equal(await page.evaluate(() => matchMedia('(pointer: coarse)').matches), true, 'These controls are exercised with coarse touch input');
+  assert.equal((await settings()).stabilization, 'natural', 'Fresh handwriting starts with Natural stabilization');
 
   for (const [tool, property, minimum, maximum, preset] of [
     ['pen', 'penWidth', .5, 32, 5],
@@ -195,6 +196,42 @@ try {
   restored = await settings();
   assert.deepEqual({ tool: restored.tool, color: restored.color, width: restored.highlighterWidth, opacity: restored.highlighterOpacity, otherWidth: restored.penWidth }, { tool: 'highlighter', color: '#16a34a', width: 31, opacity: .41, otherWidth: 4.5 }, 'Applying a highlighter style restores opacity and leaves pen width intact');
   assert.equal(await page.evaluate(async () => JSON.stringify((await window.inkspaceTest.getSession()).document.strokes)), originalInk, 'Saved-style changes never alter existing strokes');
+
+  await closeSize();
+  await setSettings({ tool: 'pen' });
+  const toolbarBeforeStabilization = await page.locator('.inkspace-toolbar').boundingBox();
+  const inkBeforeStabilization = await page.evaluate(async () => JSON.parse(JSON.stringify((await window.inkspaceTest.getSession()).document.strokes)));
+  await openSize();
+  const stabilization = popup().getByRole('group', { name: 'Handwriting stabilization', exact: true });
+  assert.equal(await stabilization.isVisible(), true, 'Freehand pens expose stabilization in the existing popup');
+  for (const [value, label] of [['off', 'Off'], ['light', 'Light'], ['natural', 'Natural'], ['strong', 'Strong']]) {
+    await stabilization.getByRole('button', { name: `Stabilization: ${label}`, exact: true }).tap();
+    assert.equal((await settings()).stabilization, value, `${label} is selected with a single touch tap`);
+    assert.equal(await stabilization.locator('button[aria-pressed="true"]').count(), 1, 'Stabilization has exactly one selected level');
+    assert.equal(await stabilization.getByRole('button', { name: `Stabilization: ${label}`, exact: true }).getAttribute('aria-pressed'), 'true');
+  }
+  const toolbarAfterStabilization = await page.locator('.inkspace-toolbar').boundingBox();
+  assert.deepEqual(toolbarAfterStabilization, toolbarBeforeStabilization, 'Stabilization adds no permanent toolbar height or width');
+  assert.deepEqual(await page.evaluate(async () => (await window.inkspaceTest.getSession()).document.strokes), inkBeforeStabilization, 'Changing stabilization preserves all existing vector ink');
+  await closeSize();
+  await page.getByRole('button', { name: 'Highlighter', exact: true }).tap();
+  await openSize();
+  assert.equal(await stabilization.isVisible(), true, 'Freehand highlighting exposes the same stabilization level');
+  assert.equal(await stabilization.getByRole('button', { name: 'Stabilization: Strong', exact: true }).getAttribute('aria-pressed'), 'true', 'Switching freehand tools preserves the selected level');
+  for (const tool of ['eraser', 'line', 'arrow', 'rectangle', 'ellipse']) {
+    await closeSize(); await setSettings({ tool }); await openSize();
+    assert.equal(await stabilization.isVisible(), false, `${tool} does not offer an inapplicable handwriting filter`);
+  }
+  await closeSize();
+  await setSettings({ tool: 'pen' });
+  await page.evaluate(async () => (await window.inkspaceTest.getSession()).flush());
+  await page.reload();
+  await page.waitForFunction(() => window.inkspaceTest?.view);
+  await page.evaluate(async () => window.inkspaceTest.getSession()); await settled();
+  assert.equal((await settings()).stabilization, 'strong', 'The selected handwriting level survives settings save and reload');
+  assert.deepEqual(await page.evaluate(async () => (await window.inkspaceTest.getSession()).document.strokes), inkBeforeStabilization, 'Saved ink reopens unchanged after changing stabilization');
+  await openSize();
+  assert.equal(await stabilization.getByRole('button', { name: 'Stabilization: Strong', exact: true }).getAttribute('aria-pressed'), 'true', 'Reloaded stabilization is reflected by its accessible selected state');
 
   const touch = await page.evaluate(() => {
     const view = window.inkspaceTest.view;
@@ -301,8 +338,34 @@ try {
       && actual.x + actual.width <= leaf.x + leaf.width + 1
       && actual.y + actual.height <= leaf.y + leaf.height + 1,
     `Popup stays inside the visible contain:strict leaf, rather than adding its origin twice: ${JSON.stringify({ pane: leaf, popup: actual })}`);
+    if (pane.height < 500) {
+      const nativePan = await popup(pdf).evaluate(element => {
+        element.scrollTop = 0;
+        const point = { identifier: 401, target: element, clientX: 180, clientY: 240, touchType: 'direct' };
+        const dispatch = (type, touches) => {
+          const event = new Event(type, { bubbles: true, cancelable: true });
+          Object.defineProperties(event, { touches: { value: touches }, targetTouches: { value: touches }, changedTouches: { value: [point] } });
+          element.dispatchEvent(event); return event;
+        };
+        dispatch('touchstart', [point]);
+        const moving = dispatch('touchmove', [{ ...point, clientY: 190 }]);
+        dispatch('touchend', []);
+        return { height: element.clientHeight, contentHeight: element.scrollHeight, movePrevented: moving.defaultPrevented };
+      });
+      assert.ok(nativePan.contentHeight > nativePan.height, 'The expanded controls use vertical scrolling in a short pane');
+      assert.equal(nativePan.movePrevented, false, 'Vertical finger movement within popup scroll capacity is left to native scrolling');
+      await popup(pdf).hover(); await pdf.mouse.wheel(0, 220); await settled(pdf);
+      assert.ok(await popup(pdf).evaluate(element => element.scrollTop > 0), 'The browser can scroll to controls below the short pane fold');
+    }
     await popup(pdf).getByRole('button', { name: 'Set stroke size to 5', exact: true }).tap();
     assert.equal((await settings(pdf)).penWidth, 5, 'A clipped pane popup remains physically reachable by touch');
+    await popup(pdf).getByRole('button', { name: 'Stabilization: Natural', exact: true }).tap();
+    assert.equal((await settings(pdf)).stabilization, 'natural', 'Stabilization remains reachable within a clipped pane');
+    const stabilizationTarget = await popup(pdf).getByRole('button', { name: 'Stabilization: Natural', exact: true }).boundingBox();
+    assert.ok(stabilizationTarget.x >= leaf.x - 1 && stabilizationTarget.y >= leaf.y - 1
+      && stabilizationTarget.x + stabilizationTarget.width <= leaf.x + leaf.width + 1
+      && stabilizationTarget.y + stabilizationTarget.height <= leaf.y + leaf.height + 1,
+    'The tapped stabilization option is inside the visible clipped pane');
     const field = popup(pdf).getByRole('spinbutton', { name: 'Exact stroke size', exact: true });
     await field.fill('5.75'); await field.press('Enter');
     assert.equal((await settings(pdf)).penWidth, 5.75, 'Exact sizing also works inside the contained leaf');
@@ -320,7 +383,7 @@ try {
     await page.screenshot({ path: '../inkspace-tablet-controls.png' });
   }
   await fs.writeFile(`work/toolbar-${engine}-result.json`, JSON.stringify({ engine, errors, warnings, containedPanes }, null, 2));
-  console.log(`Toolbar integration passed (${engine}): touch controls, focus, independent sizes, saved styles, writing space, responsive layout, PDF toolbar, and contained/clipped panes.`);
+  console.log(`Toolbar integration passed (${engine}): touch controls, focus, independent sizes, saved styles, stabilization persistence and ink preservation, writing space, responsive layout, PDF toolbar, and contained/clipped panes.`);
 } catch (error) {
   await fs.writeFile(`work/toolbar-${engine}-result.json`, JSON.stringify({ engine, passed: false, failure: String(error), errors, warnings }, null, 2));
   await page.screenshot({ path: `work/screenshots/toolbar-${engine}-failure.png` }).catch(() => {});

@@ -1,5 +1,14 @@
 # Changes
 
+## 0.3.0 — 19 October 2026
+
+- Add speed-adaptive handwriting stabilization for new pen and highlighter strokes in Markdown and PDFs. Slow movements receive more smoothing; faster curves remain responsive, with a bounded distance between input and ink.
+- Choose Off, Light, Natural, or Strong using large tap controls in the size popup or the plugin settings. Natural is the default for new and upgraded installations.
+- Process coalesced pen samples and the final pen-lift sample, keeping the same filtered geometry while drawing, saving, reopening, erasing, selecting, and exporting.
+- Preserve the last contact pressure on pen lift to avoid an artificial thickness change.
+
+Existing strokes keep their saved appearance. The writing feel still needs confirmation with a physical Apple Pencil; this is not a claim to reproduce Notability's proprietary ink engine.
+
 ## 0.2.0 — 19 October 2026
 
 - Replace the small horizontal thickness slider with tap controls, presets, and exact numeric entry to avoid requiring the swipe that can open Obsidian's sidebar on iPad.
