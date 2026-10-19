@@ -94,7 +94,17 @@ class InkEditor {
     this.toolbarHost.className = 'inkspace-toolbar-host';
     Object.assign(this.toolbarHost.style, { position: 'absolute', top: '8px', right: '12px', zIndex: '12', pointerEvents: 'auto' });
     view.dom.append(this.toolbarHost);
-    this.toolbarCleanup = host.toolbar?.(this.toolbarHost, () => this.session, { exportSvg: () => this.downloadSvg() });
+    this.toolbarCleanup = host.toolbar?.(this.toolbarHost, () => this.session, {
+      exportSvg: () => this.downloadSvg(),
+      insertSpace: () => {
+        const line = this.view.state.doc.lineAt(this.view.state.selection.main.head);
+        this.view.dispatch({
+          changes: { from: line.to, insert: '\n'.repeat(8) },
+          selection: { anchor: line.to + 1 },
+          scrollIntoView: true,
+        });
+      },
+    });
 
     this.selectionTools = this.doc.createElement('div');
     this.selectionTools.className = 'inkspace-selection-tools';

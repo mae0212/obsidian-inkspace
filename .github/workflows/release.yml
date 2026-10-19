@@ -7,7 +7,7 @@ on:
       tag:
         description: Existing release tag to package
         required: true
-        default: '0.1.0'
+        default: '0.2.0'
         type: string
 permissions: {}
 jobs:
@@ -33,7 +33,7 @@ jobs:
           assert os.environ['RELEASE_TAG'] in (version, 'v' + version), 'Tag must match manifest version'
           assert manifest['id'] == 'inkspace' and manifest['isDesktopOnly'] is False, 'Mobile plugin manifest required'
           plugin = ['main.js', 'manifest.json', 'styles.css', 'THIRD-PARTY-NOTICES.md']
-          docs = ['INSTALL.md', 'README.md', 'VALIDATION.md']
+          docs = ['INSTALL.md', 'README.md', 'VALIDATION.md', 'CHANGELOG.md']
           output = Path('release-assets')
           output.mkdir(exist_ok=True)
           for name in plugin + docs:

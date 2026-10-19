@@ -4,7 +4,8 @@ import { inkspaceExtension, refreshInkspaceEditors } from './editor';
 import { InkStore } from './store';
 import { validateDocument, reconcileAnchors } from './core';
 import { createToolbar } from './toolbar';
-import { DEFAULT_SETTINGS, type InkHost, type InkSettings, type InkSession } from './types';
+import { normalizeFavoriteStyles } from './presets';
+import { DEFAULT_SETTINGS, type InkHost, type InkSettings, type InkSession, type ToolbarActions } from './types';
 import { InkspacePdfView, VIEW_TYPE_PDF } from './pdf';
 import { importGoodnotesFiles } from './importer';
 
@@ -48,6 +49,7 @@ export default class InkspacePlugin extends Plugin implements InkHost {
   updateSettings(patch:Partial<InkSettings>):void {this.preferences={...this.preferences,...patch};this.sanitizeSettings();for(const listener of this.listeners)listener();if(this.saveSettingsTimer)window.clearTimeout(this.saveSettingsTimer);this.saveSettingsTimer=window.setTimeout(()=>void this.saveData(this.preferences).catch(e=>this.status(`Settings could not be saved: ${String(e)}`,true)),250);}
   private sanitizeSettings():void {
     const s=this.preferences;const numeric=(n:unknown,min:number,max:number,fallback:number)=>typeof n==='number'&&Number.isFinite(n)?Math.min(max,Math.max(min,n)):fallback;
+    s.favoriteStyles=normalizeFavoriteStyles(s.favoriteStyles);
     s.zoom=numeric(s.zoom,.4,2,1);s.penWidth=numeric(s.penWidth,0.5,32,2.5);s.highlighterWidth=numeric(s.highlighterWidth,2,64,22);s.eraserSize=numeric(s.eraserSize,2,100,18);s.smoothing=numeric(s.smoothing,0,1,.55);s.highlighterOpacity=numeric(s.highlighterOpacity,.05,.65,.27);s.writingWidth=numeric(s.writingWidth,400,1400,760);
     if(!/^#[0-9a-f]{6}$/i.test(s.color))s.color=DEFAULT_SETTINGS.color;
     if(!['pen','highlighter','eraser','lasso','text','line','arrow','rectangle','ellipse'].includes(s.tool))s.tool='pen';
@@ -59,7 +61,7 @@ export default class InkspacePlugin extends Plugin implements InkHost {
   resolveEditor(editor:EditorView):{path:string;title:string}|null {
     let found:{path:string;title:string}|null=null;this.app.workspace.iterateAllLeaves(leaf=>{const view=leaf.view;if(view instanceof MarkdownView&&view.file&&view.containerEl.contains(editor.dom))found={path:view.file.path,title:view.file.basename};});return found;
   }
-  toolbar(container:HTMLElement,session:()=>InkSession|null,extra?:{exportSvg?:()=>void;exportPdf?:()=>void}):()=>void{return createToolbar(this,container,session,extra);}
+  toolbar(container:HTMLElement,session:()=>InkSession|null,extra?:ToolbarActions):()=>void{return createToolbar(this,container,session,extra);}
   status(message:string,error=false):void {new Notice(message,error?12000:3500);}
   async openPdf(file:TFile):Promise<void>{const leaf=this.app.workspace.getLeaf('tab');await leaf.setViewState({type:VIEW_TYPE_PDF,state:{file:file.path},active:true});await this.app.workspace.revealLeaf(leaf);}
   private async createNote():Promise<void>{try{const stamp=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);const file=await this.app.vault.create(`Inkspace ${stamp}.md`,'# New note\n\nType here, or write anywhere on this page with your Pencil.\n\n\n\n\n\n');await this.app.workspace.getLeaf('tab').openFile(file);this.updateSettings({enabled:true,tool:'pen'});}catch(e){this.status(String(e),true);}}

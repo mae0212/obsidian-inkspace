@@ -2,7 +2,14 @@
 
 Type and draw on the same note. Inkspace adds editable ink directly over Obsidian's normal Markdown editor, including existing text and images. One mobile-compatible plugin bundle serves iPad and Windows.
 
-**Version 0.1.0 is an early prototype.** Automated editor, storage, import, and PDF checks are included. Apple Pencil latency and palm rejection must still be verified on a physical iPad; this release does not claim Goodnotes-identical performance.
+**Version 0.2.0 is an early prototype.** Automated editor, storage, import, and PDF checks are included. Apple Pencil latency and palm rejection must still be verified on a physical iPad; this release does not claim Goodnotes-identical performance.
+
+## New in 0.2.0
+
+- Tap the size button for thickness presets, large minus/plus buttons, or an exact value. No sideways slider is required.
+- Three saved styles keep a pen or highlighter's color, width, and highlighter opacity ready to reuse.
+- Larger touch targets make tools and colors easier to select on a tablet.
+- **More → Add writing space below** inserts blank lines below the current line while keeping the rest of the note editable.
 
 ## Features
 
@@ -17,15 +24,17 @@ Type and draw on the same note. Inkspace adds editable ink directly over Obsidia
 
 ## Install
 
-See [INSTALL.md](INSTALL.md) for Windows, iPad, and private-repository BRAT setup. The plugin ID is `inkspace`. Runtime files are `main.js`, `manifest.json`, and `styles.css`.
+See [INSTALL.md](INSTALL.md) for Windows, iPad, and updating an existing installation. The plugin ID is `inkspace`. Runtime files are `main.js`, `manifest.json`, and `styles.css`.
 
-The repository is private. Installing directly through BRAT requires repository access; syncing an installed Windows plugin to iPad through Obsidian Sync is another route. Installing the plugin and syncing note data are separate steps.
+The repository is public. In BRAT, add `mae0212/obsidian-inkspace` and select **0.2.0**; a GitHub token is not needed for normal installation. Syncing an installed Windows plugin to iPad through Obsidian Sync is another route. Installing the plugin and syncing note data are separate steps.
 
 ## Use
 
 Open a `.md` note in editing / Live Preview mode. The Pencil draws; the keyboard keeps editing. On Windows, enable **Draw with mouse** to use a mouse for ink, or leave it off for normal text selection. **Aa** selects text editing. Import, save, recovery, and PDF commands are in the command palette under **Inkspace**.
 
 The toolbar's **More** menu includes zoom controls, fit width, paper backgrounds, and ink SVG export. To annotate a PDF, run **Inkspace: Annotate current PDF**, or use **Annotate with Inkspace** in its file menu. Typed text remains in your Markdown notes; this version does not add PDF text boxes.
+
+Tap the current thickness to open size controls. Each drawing tool keeps its own pen, highlighter, or eraser size. In the saved styles, apply a style to recall it or save the current pen/highlighter into a slot. Size changes affect new marks; existing ink keeps its original appearance.
 
 ## Positioning and data
 
@@ -45,4 +54,4 @@ Export notebooks or folders from Goodnotes as PDF or ZIP, then run **Inkspace: I
 
 Use Node.js 20+ and pnpm. Run `pnpm install`, `pnpm typecheck`, `pnpm test`, and `pnpm build`. `pnpm preview` starts the actual editor extension in a browser test workspace at `http://127.0.0.1:4173`.
 
-`node scripts/browser-test.mjs` tests Edge. Set `INKSPACE_BROWSER=webkit` to test Playwright WebKit after installing it. See [VALIDATION.md](VALIDATION.md) for release checks and device limits. Third-party notices are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+`node scripts/browser-test.mjs`, `node scripts/zoom-test.mjs`, and `node scripts/toolbar-test.mjs` test Edge. Set `INKSPACE_BROWSER=webkit` to test Playwright WebKit after installing it. See [VALIDATION.md](VALIDATION.md) for release checks and device limits, and [CHANGELOG.md](CHANGELOG.md) for changes. Third-party notices are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
